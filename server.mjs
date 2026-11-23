@@ -1,5 +1,20 @@
 export default {async fetch(req,env){
 const url=new URL(req.url);
+if(url.pathname==='/prospect-research'){
+ if(req.method!=='POST'||req.headers.get('origin')!==url.origin)return Response.json({error:'Invalid request origin.'},{status:403});
+ if(!env.OPENAI_API_KEY)return Response.json({error:'Set OPENAI_API_KEY in Cloudflare Worker secrets, or use Research in ChatGPT.'},{status:503});
+ try{
+  const {input}=await req.json();
+  if(typeof input!=='string'||!input.trim()||input.length>8000)return Response.json({error:'Invalid research request.'},{status:400});
+  const response=await fetch('https://api.openai.com/v1/responses',{
+   method:'POST',headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
+   body:JSON.stringify({model:'gpt-5-mini',store:false,tools:[{type:'web_search'}],tool_choice:'required',max_output_tokens:4000,max_tool_calls:8,input}),
+   signal:AbortSignal.timeout(90000)
+  });
+  if(!response.ok)return Response.json({error:'Research provider returned '+response.status+'. Check API access and billing.'},{status:502});
+  return Response.json(await response.json(),{headers:{'Cache-Control':'no-store'}});
+ }catch{return Response.json({error:'Research did not complete. Please retry.'},{status:502})}
+}
 if(url.pathname==='/prospect-search'){
  const name=url.searchParams.get('name')?.trim(),city=url.searchParams.get('city')?.trim();
  if(!name||!city||name.length>150||city.length>100)return Response.json({error:'Enter a venue name and city.'},{status:400});
