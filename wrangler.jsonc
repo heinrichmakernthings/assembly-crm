@@ -1,0 +1,17 @@
+{
+  "name": "assembly-crm",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-11-23",
+  "workers_dev": true,
+  "preview_urls": false,
+  "build": {
+    "command": "node build.mjs"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "assembly-crm",
+      "database_id": "d3482175-15e6-4145-a94f-7fa79fb78466"
+    }
+  ]
+}

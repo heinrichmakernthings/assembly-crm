@@ -1,0 +1,36 @@
+export default {async fetch(req,env){
+const url=new URL(req.url);
+if(url.pathname==='/prospect-search'){
+ const name=url.searchParams.get('name')?.trim(),city=url.searchParams.get('city')?.trim();
+ if(!name||!city||name.length>150||city.length>100)return Response.json({error:'Enter a venue name and city.'},{status:400});
+ try{
+ const query=new URLSearchParams({name,address:city,pageSize:'15'});
+ const res=await fetch('https://api.ratings.food.gov.uk/Establishments?'+query,{headers:{'x-api-version':'2',Accept:'application/json'},signal:AbortSignal.timeout(15000)});
+ if(!res.ok)throw Error();
+ const data=await res.json();
+ return Response.json(data.establishments.map(x=>({name:x.BusinessName,address:[x.AddressLine1,x.AddressLine2,x.AddressLine3,x.AddressLine4,x.PostCode].filter(Boolean).join(', '),url:'https://ratings.food.gov.uk/business/'+encodeURIComponent(x.FHRSID)})));
+ }catch{return Response.json({error:'The food business register could not be reached.'},{status:502})}
+}
+if(assets[url.pathname]){const [type,data]=assets[url.pathname];return new Response(Uint8Array.from(atob(data),c=>c.charCodeAt(0)),{headers:{'Content-Type':type}})}
+if(url.pathname!='/api')return new Response(html,{headers:{'Content-Type':'text/html;charset=utf-8'}});
+const db=env.DB;
+await db.prepare('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, data TEXT NOT NULL, rev INTEGER NOT NULL)').run();
+if(req.method==='GET'){
+const all=(await db.prepare("SELECT * FROM records WHERE NOT (id GLOB 'sample[0-7]' AND rev=0) ORDER BY rowid").all()).results.map(x=>({...JSON.parse(x.data),rev:x.rev}));
+return Response.json({config:all.find(x=>x.id==='settings')?.config||{},rows:all.filter(x=>x.id!=='settings')},{headers:{'Cache-Control':'no-store'}})}
+if(req.method!=='POST'||req.headers.get('origin')!==url.origin)return new Response('',{status:403});
+const {r,goal,googleClient}=await req.json();
+if(goal||googleClient!==undefined){let key,value;if(goal){if(!Number.isInteger(goal.year)||![goal.wins,goal.income].every(n=>Number.isFinite(n)&&n>0))return new Response('',{status:400});key='goal'+goal.year;value=goal}else{if(typeof googleClient!=='string'||!/^[-a-zA-Z0-9.]+\.apps\.googleusercontent\.com$/.test(googleClient))return new Response('Invalid Google client ID',{status:400});key='googleClient';value=googleClient}
+await db.prepare("INSERT OR IGNORE INTO records VALUES('settings',?,0)").bind(JSON.stringify({id:'settings'})).run();
+await db.prepare("UPDATE records SET data=json_set(data,?,json(?)) WHERE id='settings'").bind('$.config.'+key,JSON.stringify(value)).run();return Response.json(true)}
+if(!r||!/^([a-f0-9-]{36}|sample[0-7])$/.test(r.id)||!r.name?.trim()||!Number.isInteger(r.stage)||r.stage<0||r.stage>5||r.v?.length!==13||!r.v.every(n=>Number.isFinite(n)&&n>=0)||!Array.isArray(r.logs))return new Response('',{status:400});
+if(r.deals!==undefined){
+ const idOk=v=>typeof v==='string'&&/^([a-f0-9-]{36}|sample[0-7])$/.test(v);
+ const listOk=(v,test)=>Array.isArray(v)&&v.every(e=>e&&idOk(e.id)&&test(e))&&new Set(v.map(e=>e.id)).size===v.length;
+ const refOk=v=>!v||idOk(v);
+ if(!listOk(r.contacts,c=>typeof c.name==='string'&&typeof c.email==='string')||
+ !listOk(r.deals,d=>typeof d.name==='string'&&Number.isInteger(d.stage)&&d.stage>=0&&d.stage<=5&&refOk(d.contactId)&&(d.v===null||(Array.isArray(d.v)&&d.v.length===13&&d.v.every(n=>Number.isFinite(n)&&n>=0))))||
+ !listOk(r.tasks,t=>typeof t.text==='string'&&typeof t.due==='string'&&refOk(t.deal)))return new Response('',{status:400})
+}
+const q=await db.prepare('INSERT INTO records VALUES(?,?,1) ON CONFLICT(id) DO UPDATE SET data=excluded.data,rev=records.rev+1 WHERE records.rev=?').bind(r.id,JSON.stringify(r),r.rev).run();
+return Response.json(true,{status:q.meta.changes?200:409})}}
