@@ -35,7 +35,33 @@ if(req.method==='GET'){
 const all=(await db.prepare("SELECT * FROM records WHERE NOT (id GLOB 'sample[0-7]' AND rev=0) ORDER BY rowid").all()).results.map(x=>({...JSON.parse(x.data),rev:x.rev}));
 return Response.json({config:all.find(x=>x.id==='settings')?.config||{},rows:all.filter(x=>x.id!=='settings')},{headers:{'Cache-Control':'no-store'}})}
 if(req.method!=='POST'||req.headers.get('origin')!==url.origin)return new Response('',{status:403});
-const {r,goal,googleClient}=await req.json();
+const {r,goal,googleClient,dealForecast}=await req.json();
+if(dealForecast){
+ const {companyId,dealId,values,previous,legacy,revision}=dealForecast;
+ const fail=(error,status)=>Response.json({error},{status});
+ if(!Array.isArray(values)||![13,14].includes(values.length)||!values.every(n=>Number.isFinite(n)&&n>=0)||typeof companyId!=='string'||companyId==='settings'||typeof dealId!=='string')return fail('Invalid forecast.',400);
+ for(let attempt=0;attempt<3;attempt++){
+  const stored=await db.prepare('SELECT data,rev FROM records WHERE id=?').bind(companyId).first();
+  if(!stored)return fail('Company no longer exists.',404);
+  const company=JSON.parse(stored.data);
+  if(!company.deals&&legacy&&stored.rev===revision&&dealId===companyId){
+   company.status=company.stage===4?'Client':'Prospect';
+   company.contacts=company.contact||company.email?[{id:companyId,name:company.contact||company.email,email:company.email||'',role:''}]:[];
+   company.tasks=company.task?[{id:companyId,text:company.task,due:company.due||'',owner:'Sam Heinrich',deal:companyId}]:[];
+   company.deals=[{id:companyId,name:company.name,stage:company.stage,owner:'Sam Heinrich',close:company.wonDate||'',wonDate:company.wonDate||'',v:previous,prior:company.v}];
+  }
+  const deal=company.deals?.find(d=>d.id===dealId);
+  if(!deal)return fail('Deal changed or was removed. Refresh to check.',409);
+  const same=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
+  if(!same(deal.v,values)){
+   if(!same(deal.v,previous))return fail('This forecast was edited elsewhere. Refresh and review before saving.',409);
+   deal.v=values;
+  }
+  const result=await db.prepare('UPDATE records SET data=?,rev=rev+1 WHERE id=? AND rev=?').bind(JSON.stringify(company),companyId,stored.rev).run();
+  if(result.meta.changes)return Response.json({...company,rev:stored.rev+1});
+ }
+ return fail('The record is busy. Please retry.',409);
+}
 if(goal||googleClient!==undefined){let key,value;if(goal){if(!Number.isInteger(goal.year)||![goal.wins,goal.income].every(n=>Number.isFinite(n)&&n>0))return new Response('',{status:400});key='goal'+goal.year;value=goal}else{if(typeof googleClient!=='string'||!/^[-a-zA-Z0-9.]+\.apps\.googleusercontent\.com$/.test(googleClient))return new Response('Invalid Google client ID',{status:400});key='googleClient';value=googleClient}
 await db.prepare("INSERT OR IGNORE INTO records VALUES('settings',?,0)").bind(JSON.stringify({id:'settings'})).run();
 await db.prepare("UPDATE records SET data=json_set(data,?,json(?)) WHERE id='settings'").bind('$.config.'+key,JSON.stringify(value)).run();return Response.json(true)}

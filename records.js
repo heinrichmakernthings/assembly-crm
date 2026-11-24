@@ -66,5 +66,26 @@ function record(r,did){let d=r.deals.find(d=>d.id===did),a=d?.v?calc(d.v):null;
 function timeline(items){return items.sort((a,b)=>b.l.at.localeCompare(a.l.at)).map(({r,l})=>'<div class=event><small>'+esc(l.kind)+' · '+esc(r.name)+' · '+new Date(l.at).toLocaleDateString('en-GB')+'</small><p>'+esc(l.text)+'</p>'+(l.threadId&&/^[a-f0-9]+$/i.test(l.threadId)?'<details ontoggle="inlineMail(this,\''+l.threadId+'\')"><summary>Read conversation</summary><div></div></details>'+button('Follow up','taskForm',r.id,l.deal||'','','Follow up: '+l.text):'')+(l.url&&valid(l.url)?'<a href="'+esc(l.url)+'" target=_blank rel=noopener>Open Gmail</a>':'')+'</div>').join('')||empty('No activity yet.')}
 async function inlineMail(el,id){if(!el.open||el.dataset.ready)return;let out=el.querySelector('div');out.textContent='Loading…';try{let t=await gm('threads/'+id+'?format=full');out.innerHTML=t.messages.map(m=>'<p><b>'+esc(head(m,'From'))+'</b></p><div class=mailbody>'+esc(body(m.payload)||m.snippet)+'</div>').join('');el.dataset.ready='1'}catch(e){out.textContent=e.message}}
 function activity(id,did,kind){let r=get(id);form('Log '+kind.toLowerCase(),input('text','Summary','','text','required')+dealPicker(r,did)+(kind==='Email'?input('url','Gmail thread URL','','url'):'')+input('next','Follow-up task')+input('due','Follow-up date','','date'),x=>{if(x.url&&!valid(x.url)){err.textContent='Enter a Gmail thread URL.';return}if(x.due&&!x.next.trim()){err.textContent='Enter a follow-up task.';return}return save({...r,logs:[...r.logs,{kind,text:x.text,url:x.url||'',deal:x.deal,at:now()}],tasks:x.next.trim()?[...r.tasks,{id:uid(),text:x.next,due:x.due,owner:me,deal:x.deal}]:r.tasks})},'Log activity')}
-function forecast(id,did){let r=get(id),d=r.deals.find(d=>d.id===did);popup('Forecast · '+d.name,'<form id=f>'+calculator(d.v||(r.prospectBrief?appOnlyForecast(r.prospectBrief):d.prior||defaults))+'<p><button class=primary>Apply forecast to deal</button></p></form>');recalc();f.onsubmit=e=>{e.preventDefault();save({...r,deals:editable(r.deals,d.id,{...d,v:nums()})})}}
-function applyScenario(){let root=calcRoot(),invalid=[...root.querySelectorAll('input')].find(e=>!e.validity.valid);if(invalid){invalid.closest('details').open=true;invalid.reportValidity();return}let v=nums(),deals=allDeals();if(!deals.length){popup('Apply forecast','<p>Create a deal in the pipeline to save a forecast.</p>'+btn('Open pipeline','modal.close();show(1)'));return}form('Apply forecast',picker('target','Deal',deals.map(({r,d})=>[r.id+'/'+d.id,r.name+' · '+d.name])),async x=>{let [id,did]=x.target.split('/'),r=get(id),d=r.deals.find(d=>d.id===did);if(await save({...r,deals:editable(r.deals,did,{...d,v})}))detail(id,did)},'Apply forecast to deal')}
+function draftKey(r,d){return 'assembly.forecast.'+r.id+'.'+d.id}
+async function storeForecast(r,d,v){
+ const key=draftKey(r,d);
+ try{sessionStorage.setItem(key,JSON.stringify(v))}catch{}
+ const feedback=modal.querySelector('#err');
+ try{
+  const res=await fetch('/api',{method:'POST',credentials:'same-origin',redirect:'manual',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealForecast:{companyId:r.id,dealId:d.id,values:v,previous:d.v??null,revision:r.rev,legacy:d.id===r.id}})});
+  if(res.type==='opaqueredirect'||res.status===401||res.status===403||res.headers.get('content-type')?.includes('text/html'))throw Error('Sign in again in a new CRM tab, then retry here.');
+  const data=await res.json();if(!res.ok)throw Error(data.error||'Forecast could not be saved. Please retry.');
+  rows=rows.map(x=>x.id===r.id?upgrade(data):x);
+  try{sessionStorage.removeItem(key)}catch{}
+  modal.close();detail(r.id,d.id);return true
+ }catch(e){feedback.textContent=(e instanceof TypeError?'Could not reach the CRM. Check your connection or sign in again in a new tab, then retry.':e.message)+' Your entries are kept here.';return false}
+}
+function forecast(id,did){
+ const r=get(id),d=r.deals.find(x=>x.id===did);let draft;
+ try{draft=JSON.parse(sessionStorage.getItem(draftKey(r,d)))}catch{}
+ const values=Array.isArray(draft)?draft:d.v||(r.prospectBrief?appOnlyForecast(r.prospectBrief):d.prior||defaults);
+ popup('Forecast · '+d.name,'<form id=f>'+calculator(values)+'<p><button class=primary>Apply forecast to deal</button></p></form>');recalc();
+ if(draft)modal.querySelector('#err').textContent='Restored your unsaved forecast. Review before applying.';
+ f.onsubmit=async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button.primary');btn.disabled=true;try{await storeForecast(r,d,nums())}finally{btn.disabled=false}}
+}
+function applyScenario(){let root=calcRoot(),invalid=[...root.querySelectorAll('input')].find(e=>!e.validity.valid);if(invalid){invalid.closest('details').open=true;invalid.reportValidity();return}let v=nums(),deals=allDeals();if(!deals.length){popup('Apply forecast','<p>Create a deal in the pipeline to save a forecast.</p>'+btn('Open pipeline','modal.close();show(1)'));return}form('Apply forecast',picker('target','Deal',deals.map(({r,d})=>[r.id+'/'+d.id,r.name+' · '+d.name])),async x=>{let [id,did]=x.target.split('/'),r=get(id),d=r.deals.find(d=>d.id===did);await storeForecast(r,d,v)},'Apply forecast to deal')}
