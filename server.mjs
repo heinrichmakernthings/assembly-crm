@@ -1,5 +1,6 @@
 export default {async fetch(req,env){
 const url=new URL(req.url);
+if(url.pathname==='/company-website')return importWebsite(req);
 if(url.pathname==='/prospect-research'){
  if(req.method!=='POST'||req.headers.get('origin')!==url.origin)return Response.json({error:'Invalid request origin.'},{status:403});
  if(!env.OPENAI_API_KEY)return Response.json({error:'Set OPENAI_API_KEY in Cloudflare Worker secrets, or use Research in ChatGPT.'},{status:503});
