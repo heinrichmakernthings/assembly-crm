@@ -3,7 +3,7 @@ const stages=st, slugs=['today','deals','companies','activities','calculators','
 function upgrade(r){
  if(r.deals)return r;
  const dealId=r.id,legacyDefault=[100,1000,20,2,0,5,10,15,10,35,20,45,4];
- const assumed=[defaults,legacyDefault].some(v=>JSON.stringify(v)===JSON.stringify(r.v));
+ const assumed=[defaults,defaults.slice(0,13),legacyDefault].some(v=>JSON.stringify(v)===JSON.stringify(r.v));
  return {...r,status:r.stage===4?'Client':'Prospect',contacts:r.contact||r.email?[{id:r.id,name:r.contact||r.email,email:r.email||'',role:''}]:[],deals:[{id:dealId,name:r.name,stage:r.stage,owner:me,close:r.wonDate||'',wonDate:r.wonDate||'',v:assumed?null:r.v,prior:assumed?r.v:null}],tasks:r.task?[{id:r.id,text:r.task,due:r.due||'',owner:me,deal:dealId}]:[]}
 }
 function show(i){location.hash=slugs[i];if(slugs[i]===route()[0])render()}

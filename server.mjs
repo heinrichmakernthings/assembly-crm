@@ -39,13 +39,13 @@ const {r,goal,googleClient}=await req.json();
 if(goal||googleClient!==undefined){let key,value;if(goal){if(!Number.isInteger(goal.year)||![goal.wins,goal.income].every(n=>Number.isFinite(n)&&n>0))return new Response('',{status:400});key='goal'+goal.year;value=goal}else{if(typeof googleClient!=='string'||!/^[-a-zA-Z0-9.]+\.apps\.googleusercontent\.com$/.test(googleClient))return new Response('Invalid Google client ID',{status:400});key='googleClient';value=googleClient}
 await db.prepare("INSERT OR IGNORE INTO records VALUES('settings',?,0)").bind(JSON.stringify({id:'settings'})).run();
 await db.prepare("UPDATE records SET data=json_set(data,?,json(?)) WHERE id='settings'").bind('$.config.'+key,JSON.stringify(value)).run();return Response.json(true)}
-if(!r||!/^([a-f0-9-]{36}|sample[0-7])$/.test(r.id)||!r.name?.trim()||!Number.isInteger(r.stage)||r.stage<0||r.stage>5||r.v?.length!==13||!r.v.every(n=>Number.isFinite(n)&&n>=0)||!Array.isArray(r.logs))return new Response('',{status:400});
+if(!r||!/^([a-f0-9-]{36}|sample[0-7])$/.test(r.id)||!r.name?.trim()||!Number.isInteger(r.stage)||r.stage<0||r.stage>5||![13,14].includes(r.v?.length)||!r.v.every(n=>Number.isFinite(n)&&n>=0)||!Array.isArray(r.logs))return new Response('',{status:400});
 if(r.deals!==undefined){
  const idOk=v=>typeof v==='string'&&/^([a-f0-9-]{36}|sample[0-7])$/.test(v);
  const listOk=(v,test)=>Array.isArray(v)&&v.every(e=>e&&idOk(e.id)&&test(e))&&new Set(v.map(e=>e.id)).size===v.length;
  const refOk=v=>!v||idOk(v);
  if(!listOk(r.contacts,c=>typeof c.name==='string'&&typeof c.email==='string')||
- !listOk(r.deals,d=>typeof d.name==='string'&&Number.isInteger(d.stage)&&d.stage>=0&&d.stage<=5&&refOk(d.contactId)&&(d.v===null||(Array.isArray(d.v)&&d.v.length===13&&d.v.every(n=>Number.isFinite(n)&&n>=0))))||
+ !listOk(r.deals,d=>typeof d.name==='string'&&Number.isInteger(d.stage)&&d.stage>=0&&d.stage<=5&&refOk(d.contactId)&&(d.v===null||(Array.isArray(d.v)&&[13,14].includes(d.v.length)&&d.v.every(n=>Number.isFinite(n)&&n>=0))))||
  !listOk(r.tasks,t=>typeof t.text==='string'&&typeof t.due==='string'&&refOk(t.deal)))return new Response('',{status:400})
 }
 const q=await db.prepare('INSERT INTO records VALUES(?,?,1) ON CONFLICT(id) DO UPDATE SET data=excluded.data,rev=records.rev+1 WHERE records.rev=?').bind(r.id,JSON.stringify(r),r.rev).run();
