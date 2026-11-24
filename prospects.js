@@ -97,3 +97,14 @@ async function lookupProspect(e){
  try{const res=await fetch('/prospect-search?'+new URLSearchParams({name,city}));if(!res.ok)throw Error();const list=await res.json();box.textContent=list.length?'Select the matching premises.':'No registered match found.';for(const r of list){const b=document.createElement('button');b.textContent=r.name+' · '+r.address;b.onclick=()=>use(r);box.append(b)}}catch{box.textContent='Register unavailable. Continue with a venue name to research it.'}
  const b=document.createElement('button');b.textContent='Use '+name+' as entered';b.onclick=()=>use();box.append(b)
 }
+
+pages.push('City network');
+slugs.push('city-network');
+paths.push('M5 6h3v3H5z M16 4h3v3h-3z M13 16h3v3h-3z M8 7l8-2 M7 9l7 7 M17 7l-2 9');
+const citySectors=['Restaurants','Venues','Record stores','360 music companies','Radio stations','Promoters','Artists','Festivals','Saunas','Community spaces','Creative studio spaces','Cafés','Coworking spaces','Pubs'];
+let networkCity=cities[0];
+function cityNetwork(){
+ view.innerHTML=heading('City network','')+'<div class=tools>'+select('networkCity','City',cities,networkCity)+'</div><div class=stats>'+[['Local organisations','0'],['Sectors represented','0 / 14'],['Recorded partnerships','0']].map(([title,value])=>'<div class=stat><small>'+title+'</small><strong>'+value+'</strong></div>').join('')+'</div>'+block('Local relationships','<div style="min-height:180px;display:grid;place-items:center"><p class=empty>No relationships recorded in '+esc(networkCity)+'.</p></div>')+block('Sector coverage','<div class=tools id=networkSectors></div><p aria-live=polite id=networkSector></p>');
+ view.querySelector('[name=networkCity]').onchange=e=>{networkCity=e.target.value;cityNetwork()};
+ for(const sector of citySectors){const b=document.createElement('button');b.textContent=sector+' · 0';b.onclick=()=>{view.querySelector('#networkSector').textContent=sector+' · No organisations recorded in '+networkCity+'.'};view.querySelector('#networkSectors').append(b)}
+}

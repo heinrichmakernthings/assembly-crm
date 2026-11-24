@@ -21,6 +21,7 @@ function render(){
  nav.innerHTML=pages.map((p,i)=>btn(icon(i)+p,'show('+i+')',i===page?'active':'')).join('');nav.querySelector('.active')?.setAttribute('aria-current','page');crumb.textContent=pages[page];date.textContent=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
  if(section==='contact'){let r=get(id),c=r?.contacts.find(c=>c.id===did);view.innerHTML=c?contactRecord(r,c):empty('Contact unavailable.');return}
  if(section==='company'){let r=get(id);view.innerHTML=r?record(r,did):empty('Company unavailable.')+button('Companies','show',2);return}
+ if(section==='city-network'){cityNetwork();return}
  if(page===8){prospectView();return}
  if(page===0)view.innerHTML=dayView();
  if(page===1)view.innerHTML=pipeline();
