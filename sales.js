@@ -25,6 +25,10 @@ function partnerPlan(){
 }
 
 function dealRevenue(d){
+ if(d.pricingMode==='App-only membership'){
+  const percent=d.appRate==='15%'?15:10;
+  return {monthly:Math.round(Number(d.appGross||0)*percent)/100,once:d.appDev==='£50'?50:0};
+ }
  const entered=value=>value!==''&&value!=null;
  if(entered(d.monthlyRevenue)||entered(d.onceRevenue)){
   return {monthly:Number(d.monthlyRevenue||0),once:Number(d.onceRevenue||0)};

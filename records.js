@@ -46,7 +46,19 @@ function contactForm(id,cid){let r=get(id),c=r.contacts.find(c=>c.id===cid)||{id
 function dealForm(id,did){
  if(!id){if(!rows.length){edit();return}form('Create deal',picker('company','Company',rows.map(r=>[r.id,r.name])),x=>dealForm(x.company),'Continue');return}
  let r=get(id),d=r.deals.find(x=>x.id===did)||{id:uid(),v:null,stage:0,owner:me};
- form(did?'Edit deal':'Create deal',input('name','Deal name',d.name,'text','required')+select('stage','Stage',st,st[d.stage])+input('owner','Deal owner',d.owner,'text','required')+input('close','Expected close date',d.close,'date')+input('monthlyRevenue','Monthly Assembly revenue (£)',d.monthlyRevenue??'','number','min=0 step=.01')+input('onceRevenue','One-off Assembly revenue (£)',d.onceRevenue??'','number','min=0 step=.01')+'<small class=wide>Enter Assembly fees after the client’s share. Leave both amounts blank to use the deal calculator.</small>'+input('next','Next step',d.next)+picker('contactId','Deal contact',[['','Select contact'],...r.contacts.map(c=>[c.id,c.name])],d.contactId),async x=>{let stage=st.indexOf(x.stage),updated={...d,...x,stage,wonDate:stage===4?(d.wonDate||today()):''};if(await save({...r,status:stage===4?'Client':r.status,deals:editable(r.deals,d.id,updated),logs:[...r.logs,{kind:'Deal',deal:d.id,text:did?'Updated '+x.name:'Created '+x.name,at:now()}]}))detail(id,d.id)})
+ form(did?'Edit deal':'Create deal',input('name','Deal name',d.name,'text','required')+select('stage','Stage',st,st[d.stage])+input('owner','Deal owner',d.owner,'text','required')+input('close','Expected close date',d.close,'date')+select('pricingMode','Deal pricing',['Standard','App-only membership'],d.pricingMode||'Standard')+select('appRate','Assembly share of membership sales',['10%','15%'],d.appRate||'10%')+input('appGross','Monthly membership sales (£)',d.appGross??'','number','min=0 step=.01')+select('appDev','Upfront development fee',['£0','£50'],d.appDev||'£0')+input('monthlyRevenue','Monthly Assembly revenue (£)',d.monthlyRevenue??'','number','min=0 step=.01')+input('onceRevenue','One-off Assembly revenue (£)',d.onceRevenue??'','number','min=0 step=.01')+'<small class=wide>Enter Assembly fees after the client’s share. Leave both amounts blank to use the deal calculator.</small>'+input('next','Next step',d.next)+picker('contactId','Deal contact',[['','Select contact'],...r.contacts.map(c=>[c.id,c.name])],d.contactId),async x=>{let stage=st.indexOf(x.stage),updated={...d,...x,stage,wonDate:stage===4?(d.wonDate||today()):''};if(await save({...r,status:stage===4?'Client':r.status,deals:editable(r.deals,d.id,updated),logs:[...r.logs,{kind:'Deal',deal:d.id,text:did?'Updated '+x.name:'Created '+x.name,at:now()}]}))detail(id,d.id)})
+ const fields=document.querySelector('#f').elements;
+ function togglePricing(){
+  const app=fields.pricingMode.value==='App-only membership';
+  for(const key of ['appRate','appGross','appDev','monthlyRevenue','onceRevenue']){
+   const visible=['appRate','appGross','appDev'].includes(key)===app;
+   fields[key].closest('label').style.display=visible?'':'none';
+   fields[key].disabled=!visible;
+  }
+  fields.appGross.required=app;
+  fields.onceRevenue.closest('label').nextElementSibling.hidden=app;
+ }
+ fields.pricingMode.onchange=togglePricing;togglePricing()
 }
 function taskForm(id,deal='',tid='',subject=''){let r=get(id),t=r.tasks.find(t=>t.id===tid)||{id:uid(),deal,owner:me,text:subject};form(tid?'Edit task':'New task',input('text','Task',t.text,'text','required')+input('due','Due date',t.due||today(),'date','required')+input('owner','Assigned to',t.owner,'text','required')+dealPicker(r,t.deal),x=>save({...r,tasks:editable(r.tasks,t.id,{...t,...x})}))}
 function taskList(items){return items.map(({r,t})=>'<div class=taskline><div><b>'+esc(t.text)+'</b><small>'+button(esc(r.name),'detail',r.id,t.deal||'')+' · '+esc(t.owner)+' · '+esc(t.due||'Unscheduled')+'</small></div><div>'+button('Edit','taskForm',r.id,t.deal||'',t.id)+button('Done','completeTask',r.id,t.id)+'</div></div>').join('')||empty('No tasks.')}
