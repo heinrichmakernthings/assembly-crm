@@ -1,5 +1,6 @@
 export default {async fetch(req,env){
 const url=new URL(req.url);
+if(url.pathname==='/target-planner')return new Response(planner,{headers:{'Content-Type':'text/html;charset=utf-8'}});
 if(url.pathname==='/company-website')return importWebsite(req);
 if(url.pathname==='/prospect-research'){
  if(req.method!=='POST'||req.headers.get('origin')!==url.origin)return Response.json({error:'Invalid request origin.'},{status:403});
@@ -35,7 +36,15 @@ if(req.method==='GET'){
 const all=(await db.prepare("SELECT * FROM records WHERE NOT (id GLOB 'sample[0-7]' AND rev=0) ORDER BY rowid").all()).results.map(x=>({...JSON.parse(x.data),rev:x.rev}));
 return Response.json({config:all.find(x=>x.id==='settings')?.config||{},rows:all.filter(x=>x.id!=='settings')},{headers:{'Cache-Control':'no-store'}})}
 if(req.method!=='POST'||req.headers.get('origin')!==url.origin)return new Response('',{status:403});
-const {r,goal,googleClient,dealForecast}=await req.json();
+const {r,goal,googleClient,dealForecast,mix}=await req.json();
+if(mix){
+ const {year,state,counts,previous}=mix;
+ if(!Number.isInteger(year)||year<1900||year>9999||!Array.isArray(counts)||counts.length!==7||!counts.every(x=>Number.isSafeInteger(x)&&x>=0)||state?.profiles?.length!==7||JSON.stringify(state).length>20000)return new Response('',{status:400});
+ const path='$.config.mix'+year;
+ await db.prepare("INSERT OR IGNORE INTO records VALUES('settings',?,0)").bind(JSON.stringify({id:'settings'})).run();
+ const result=await db.prepare("UPDATE records SET data=json_set(data,?,json(?),?,?) WHERE id='settings' AND json_extract(data,?) IS ?").bind(path,JSON.stringify({state,counts}), '$.config.goal'+year+'.wins',counts.reduce((a,b)=>a+b,0),path,previous?JSON.stringify(previous):null).run();
+ return Response.json(true,{status:result.meta.changes?200:409});
+}
 if(dealForecast){
  const {companyId,dealId,values,previous,legacy,revision}=dealForecast;
  const fail=(error,status)=>Response.json({error},{status});
