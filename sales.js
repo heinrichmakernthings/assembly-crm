@@ -2,7 +2,7 @@ const streams=['Site subscriptions','Ticket fees','Membership','Messaging'],rate
 function commission(v){return v[0]*12*rates[0]+v[1]*v[2]*v[3]/100*v[7]/100+v[4]*v[5]*12*v[6]/100*rates[2]+(v[13]||0)*12*rates[3]}
 let year, targetYear=2027, ledgerYear=new Date().getFullYear();
 function target(){return {income:12000,wins:19,...config['goal'+year],...(year===2027?{wins:operatingPlan().counts.reduce((a,b)=>a+b,0)}:{})}}
-function entries(){return rows.flatMap(r=>(r.ledger||[]).map(l=>({...l,r}))).filter(l=>l.date.startsWith(year+'-')).sort((a,b)=>b.date.localeCompare(a.date))}
+function entries(selectedYear=year){return rows.flatMap(r=>(r.ledger||[]).map(l=>({...l,r}))).filter(l=>l.date.startsWith(selectedYear+'-')).sort((a,b)=>b.date.localeCompare(a.date))}
 function tracker(p){year=p===5?targetYear:ledgerYear;let items=entries(),earned=items.reduce((s,l)=>s+l.amount,0),paid=items.reduce((s,l)=>s+(l.paid?l.amount:0),0),wins=rows.filter(r=>r.deals.some(d=>d.stage===4&&d.wonDate?.startsWith(year+'-'))).length,t=target(),summary=(title,value,desc)=>'<section class=stat><small>'+title+'</small><strong>'+value+'</strong><small>'+desc+'</small></section>';
 if(p===5){
  const goalCard=(title,current,goal,fmt)=>{const pct=goal?Math.round(current/goal*100):100;return '<section class=goal-card><div class=row><h2>'+title+'</h2><span>'+pct+'%</span></div><p><strong>'+fmt(current)+'</strong> <small>of '+fmt(goal)+'</small></p><progress aria-label="'+title+'" max="'+goal+'" value="'+Math.min(current,goal)+'"></progress><small>'+(current>=goal?'Target reached':fmt(goal-current)+' remaining')+'</small></section>'};

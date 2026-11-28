@@ -45,6 +45,23 @@ async function saveWeights(event){
  if(result.status==='unreachable'){form.querySelector('[role=status]').textContent='This mix cannot reach the target. Add weight to a revenue-generating profile.';return}
  try{await api({mix:{year:2027,state,counts:result.counts,previous:config.mix2027||null}});await load()}catch(e){form.querySelector('[role=status]').textContent=e.message}
 }
+const paceChoices={period:['Monthly and weekly','Monthly','Weekly'],metric:['Both metrics','Client onboarding','Assembly revenue']};
+const paceSelection={period:'Monthly and weekly',metric:'Both metrics'};
+function paceSelect(key,label){
+ return '<label>'+label+'<select data-pace="'+key+'">'+paceChoices[key].map(value=>'<option '+(paceSelection[key]===value?'selected':'')+'>'+value+'</option>').join('')+'</select></label>'
+}
+document.addEventListener('change',event=>{
+ const key=event.target.dataset.pace;
+ if(!paceChoices[key]?.includes(event.target.value))return;
+ paceSelection[key]=event.target.value;
+ render();
+ document.querySelector('[data-pace="'+key+'"]')?.focus()
+});
+function homePace(){
+ const received=entries(2027).reduce((sum,item)=>sum+item.revenue,0);
+ const wins=rows.filter(r=>r.deals.some(d=>d.stage===4&&d.wonDate?.startsWith('2027-'))).length;
+ return paceDashboard(operatingPlan(),received,wins)
+}
 function paceDashboard(plan,received,wins,now=new Date()){
  const start=Date.UTC(2027,0,1),end=Date.UTC(2028,0,1);
  const today=Date.parse(now.toLocaleDateString('en-CA',{timeZone:'Europe/London'})+'T00:00:00Z');
@@ -53,7 +70,10 @@ function paceDashboard(plan,received,wins,now=new Date()){
  function card(title,target,actual,format,colour){
   const gap=Math.max(0,target-actual),pct=target?Math.min(100,actual/target*100):100;
   const rate=periods=>gap===0?format(0):fraction?format(gap/(periods*fraction)):'Year ended';
-  return '<article class="goal-card"><div class="row"><h3>'+title+'</h3><div aria-hidden="true" style="width:52px;height:52px;border-radius:50%;background:conic-gradient('+colour+' '+pct+'%,#e7e6ec 0)"></div></div><small>'+format(actual)+' of '+format(target)+' · '+pct.toFixed(1)+'% achieved</small><div class="split"><div><small>Per month</small><strong>'+rate(months)+'</strong></div><div><small>Per week</small><strong>'+rate(weeks)+'</strong></div></div></article>'
+  if(paceSelection.metric!=='Both metrics'&&paceSelection.metric!==title)return '';
+  const value=(label,periods)=>'<div><small>'+label+'</small><strong>'+rate(periods)+'</strong></div>';
+  const values=(paceSelection.period==='Weekly'?'':value('Per month',months))+(paceSelection.period==='Monthly'?'':value('Per week',weeks));
+  return '<article class="goal-card"><div class="row"><h3>'+title+'</h3><div aria-hidden="true" style="width:52px;height:52px;border-radius:50%;background:conic-gradient('+colour+' '+pct+'%,#e7e6ec 0)"></div></div><small>'+format(actual)+' of '+format(target)+' · '+pct.toFixed(1)+'% achieved</small><div class="split">'+values+'</div></article>'
  }
- return '<section class="panel" style="margin:18px 0"><h2>Onboarding &amp; revenue pace</h2><p>Average needed across the remaining year, based on '+months+' selling months and '+weeks+' selling weeks spread evenly through 2027.</p><div class="goal-grid">'+(plan.status==='unreachable'?'<article class="goal-card"><h3>Client onboarding</h3><p>Adjust the mix to reach the revenue target.</p></article>':card('Client onboarding',plan.count,wins,n=>n.toLocaleString('en-GB',{maximumFractionDigits:1}),'#7958cd'))+card('Assembly revenue',500000,received,money,'#23836e')+'</div><small>Each pie shows annual progress. Onboarding uses distinct companies with a won deal. Revenue uses recorded receipts.</small></section>'
+ return '<section class="panel" style="margin:18px 0"><h2>2027 sales dashboard</h2><div class=tools>'+paceSelect('period','Period')+paceSelect('metric','Metric')+'</div><p>Average needed across the remaining year, based on '+months+' selling months and '+weeks+' selling weeks spread evenly through 2027.</p><div class="goal-grid">'+(plan.status==='unreachable'?(paceSelection.metric==='Assembly revenue'?'':'<article class="goal-card"><h3>Client onboarding</h3><p>Adjust the mix to reach the revenue target.</p></article>'):card('Client onboarding',plan.count,wins,n=>n.toLocaleString('en-GB',{maximumFractionDigits:1}),'#7958cd'))+card('Assembly revenue',500000,received,money,'#23836e')+'</div><small>Each pie shows annual progress. Onboarding uses distinct companies with a won deal. Revenue uses recorded receipts.</small></section>'
 }
