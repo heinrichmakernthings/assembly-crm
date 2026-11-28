@@ -39,7 +39,7 @@ function prospectView(){
  const p=prospect;
  Object.assign(p,{plan:'app-only',fee:10,platform:0});
  const controls=(items)=>items.map(([key,label,max])=>input(key,label,p[key],'number','min="0" step="any" '+(max?'max="'+max+'"':''))).join('');
- view.innerHTML=heading('Prospecting','Research a venue and model a membership offer.')+
+ view.innerHTML=heading('Prospecting','')+discoveryPanel()+
  '<section class="panel"><form id="look" class="tools">'+input('venue','Venue name',p.name,'text','required')+input('town','City',p.city,'text','required')+'<button class="primary">Find venue</button></form><div id="matches"></div></section>'+
  savedTargets()+'<section class="panel"><h2>Subscriber scenarios</h2><p class="sub">Choose a subscriber count to use it in the sales brief.</p><div id="scenarioGrid" class="scroll"></div></section>'+
  '<div class="mid"><section class="panel"><h2>'+esc(p.name)+'</h2><p>'+esc(p.address||p.city)+'</p><form id="assume"><h2>Target fit</h2><p id="fitResult"></p><div class="grid">'+targetSignals.map(([key,title,,answers])=>select(key,title,['Still to check',...answers],p[key])).join('')+'</div><p id="fitQuestion"></p><hr class="sep"><label>Local rent comparables<select name="area"><option value="">Enter your own evidence</option>'+Object.keys(localRent).filter(()=>p.city.toLowerCase()==='bristol').map(a=>'<option '+(a===p.area?'selected':'')+'>'+a+'</option>').join('')+'</select></label><div class="grid">'+controls([['low','Monthly rent · low (£)'],['high','Monthly rent · high (£)'],['rv','2026 rateable value found (£)'],['bill','Actual monthly rates (£)']])+select('rvMatch','Does the 2026 rating entry match this premises?',['Still to verify','Possible unit or floor mismatch','Exact unit and address confirmed'],p.rvMatch)+input('rvSource','Official valuation record or bill reference',p.rvSource)+input('rvDate','Valuation effective date',p.rvDate,'date')+'</div><label><span><input name="relief" type="checkbox" '+(p.relief?'checked':'')+'> Eligible for small business rate relief</span></label><hr class="sep"><h2>App-only membership</h2><p>Assembly receives 10% of membership sales. Monthly platform fee £0. The café can use its existing website.</p><div class="grid">'+input('reward','Weekly reward',p.reward)+controls([['members','Members'],['price','Price per month (£)'],['cost','Cost per reward (£)'],['use','Weekly redemption (%)',100]])+'</div><label>Research notes and sources<textarea name="notes" rows="4">'+esc(p.notes)+'</textarea></label></form></section><div><section class="panel"><h2>Sales brief</h2><div id="out"></div><button id="saveBrief">Save to company</button> <button id="copyBrief">Copy pitch</button></section><section class="panel"><h2>Research evidence</h2><p id="benchmark"></p><div id="sources"></div><p>'+external('Check the official valuation',valuation)+' · '+(p.city.toLowerCase()==='bristol'?external('Bristol rates rules',rateGuide)+' · '+external('Council disclosure and available property data','https://www.bristol.gov.uk/business/business-rates/business-rates-data'):external('England rates guidance','https://www.gov.uk/estimate-your-business-rates'))+'</p><details><summary>Run web research here</summary><button id="liveResearch">Search council, valuation and venue sources</button><p id="researchStatus" role="status"></p></details><button id="deep">Research this venue in ChatGPT</button><p class="sub">Opens a tailored research request. Add findings and links to the notes above.</p></section></div></div>';
@@ -49,6 +49,7 @@ function prospectView(){
  f.oninput=()=>{for(const e of f.elements)if(e.name)p[e.name]=e.type==='checkbox'?e.checked:e.value;updateBrief()};
  f.area.onchange=()=>{const a=localRent[f.area.value];p.low=a?.[0]??'';p.high=a?.[1]??'';prospectView()};
  $('#sources').innerHTML=p.links.map(([t,u])=>'<p>'+external(t,u)+'</p>').join('');
+ bindDiscovery();
  $('#look').onsubmit=lookupProspect;
  $('#liveResearch').onclick=async()=>{
  const status=$('#researchStatus'),button=$('#liveResearch');
@@ -107,4 +108,28 @@ function cityNetwork(){
  view.innerHTML=heading('City network','')+'<div class=tools>'+select('networkCity','City',cities,networkCity)+'</div><div class=stats>'+[['Local organisations','0'],['Sectors represented','0 / 14'],['Recorded partnerships','0']].map(([title,value])=>'<div class=stat><small>'+title+'</small><strong>'+value+'</strong></div>').join('')+'</div>'+block('Local relationships','<div style="min-height:180px;display:grid;place-items:center"><p class=empty>No relationships recorded in '+esc(networkCity)+'.</p></div>')+block('Sector coverage','<div class=tools id=networkSectors></div><p aria-live=polite id=networkSector></p>');
  view.querySelector('[name=networkCity]').onchange=e=>{networkCity=e.target.value;cityNetwork()};
  for(const sector of citySectors){const b=document.createElement('button');b.textContent=sector+' · 0';b.onclick=()=>{view.querySelector('#networkSector').textContent=sector+' · No organisations recorded in '+networkCity+'.'};view.querySelector('#networkSectors').append(b)}
+}
+
+function discoveryPanel(){
+ return '<section class="panel"><h2>Discover prospects</h2><form id="discoverForm"><div class="tools">'+select('city','Target city',cities,'Bristol')+select('sector','Sector',citySectors,'Cafés')+'</div><div class="tools"><button class="primary">Research in CRM</button><button type="button" id="discoverChat">Research in ChatGPT</button></div></form><div id="discoverOutput" aria-live="polite"></div></section>'
+}
+function discoveryPrompt(city,sector){
+ return 'Research up to five currently operating independent businesses in '+city+' in the sector '+sector+' for Assembly, digital infrastructure for independent culture. Verify each location and independence with public sources. Exclude chains and clearly flag uncertainty. Prioritise an identifiable repeat audience, recurring events, or an existing membership or ticket offer. For each business give its name, official website, one specific observed fact with a dated source URL, why Assembly might fit, one tailored offer idea labelled as a proposal, a discovery question, and a first outreach angle. Choose the product that fits: branded app-only membership (zero fixed monthly fee and 10% of membership sales), ticketing, or website. Do not invent audience sizes, rent, contacts, partnerships or evidence. Cite clickable source links and rank the strongest leads with reasons. Return fewer prospects when evidence is weak.'
+}
+function bindDiscovery(){
+ const form=document.querySelector('#discoverForm'),out=document.querySelector('#discoverOutput');
+ const prompt=()=>discoveryPrompt(form.elements.city.value,form.elements.sector.value);
+ document.querySelector('#discoverChat').onclick=()=>window.open('https://chatgpt.com/?q='+encodeURIComponent(prompt()),'_blank','noopener');
+ form.onsubmit=async e=>{
+  e.preventDefault();const button=form.querySelector('button.primary');button.disabled=true;out.textContent='Researching local businesses…';
+  try{
+   const res=await fetch('/prospect-research',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:prompt()})});
+   if(res.status===503)throw Error('Use Research in ChatGPT now. In-CRM research needs an OpenAI API key.');
+   if(!res.ok)throw Error('Research could not finish. Retry or open the search in ChatGPT.');
+   const data=await res.json(),parts=(data.output||[]).flatMap(item=>item.content||[]).filter(part=>part.type==='output_text'&&part.text);
+   if(!parts.length)throw Error('No research returned. Try another city or sector.');
+   const summary=document.createElement('div');summary.style.whiteSpace='pre-wrap';summary.textContent=parts.map(p=>p.text).join('\n\n');out.replaceChildren(summary);
+   const seen=new Set();for(const part of parts)for(const ref of part.annotations||[]){if(!/^https?:\/\//i.test(ref.url)||seen.has(ref.url))continue;seen.add(ref.url);const line=document.createElement('p'),link=document.createElement('a');link.href=ref.url;link.target='_blank';link.rel='noopener';link.textContent=ref.title||ref.url;line.append(link);out.append(line)}
+  }catch(error){out.textContent=error.message}finally{button.disabled=false}
+ }
 }
