@@ -1,5 +1,7 @@
 import fs from 'node:fs';
-const html=fs.readFileSync('index.html','utf8').replace('BRANDCSS',()=>fs.readFileSync('brand.css','utf8')).replace('EXTRAS',()=>['sales.js','gmail.js','records.js','drive.js','prospects.js','workspace.js','mix.js'].map(p=>fs.readFileSync(p,'utf8')).join('\n')), script=html.split('<script>')[1].split('</script>')[0];
+const plannerSource=fs.readFileSync('planner.html','utf8');
+const model=plannerSource.slice(plannerSource.indexOf('const __model='),plannerSource.indexOf('const __charts='));
+const html=fs.readFileSync('index.html','utf8').replace('BRANDCSS',()=>fs.readFileSync('brand.css','utf8')).replace('EXTRAS',()=>model+['sales.js','gmail.js','records.js','drive.js','prospects.js','workspace.js','mix.js'].map(p=>fs.readFileSync(p,'utf8')).join('\n')), script=html.split('<script>')[1].split('</script>')[0];
 new Function(script);
 fs.mkdirSync('dist/server',{recursive:true});
 fs.mkdirSync('dist/.openai',{recursive:true});fs.copyFileSync('.openai/hosting.json','dist/.openai/hosting.json');
